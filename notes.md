@@ -6441,8 +6441,8 @@ Disadvantages:
 
 All the proxies mentioned below have some type of Ethereum improvemtn proposal (EIP) and most of them are in the draft phase
 
-Note: Upgradeable contracts do not use constructors in the proxy or the implementation. This is because if the implementation has logic that sets variables, the proxy will not set those variables as the constructor for the implementation only sets those variables in the implementation.
-    To get around this, we need to deploy the implementation function, then we need to call a "intializer" function. This is basically our constructor, except it will be called on the proxy.
+Note: Upgradeable contracts do not use constructors in the implementation. This is because if the implementation has logic that sets variables, the proxy will not set those variables as the constructor for the implementation only sets those variables in the implementation.
+    To get around this, we need to deploy the implementation function, then we need to call a "intializer" function. This is basically our constructor, except it will be called in the proxy.
 
 
 #### Transparent Proxy Pattern
@@ -6477,6 +6477,7 @@ forge install OpenZeppelin/openzeppelin-contracts-upgradeable --no-commit
 ```
 
 and import and inherit the UUPS, and write a `_authorizeUpgrade` override function:
+Example from `foundry-upgrades-f23/src/BoxV1.sol`:
 ```js
 // SPDX-License-Identifier: MIT
 
@@ -6486,7 +6487,7 @@ import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-contract Proxy is Initializable, OwnableUpgradeable, UUPSUpgradeable {
+contract BoxV1 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     uint256 internal number;
 
     /// @custom:oz-upgrades-unsafe-allow constructor // this comment turns off the warning/error of using a constructor
@@ -6523,27 +6524,28 @@ at the bottom of the `UUPSUpgradeable` file, there is a `uint256[50] private __g
 
 Note: If you see an error of `Linearization of inheritance graph impossible`, this means that we are trying to inherit contracts in the wrong order. So change the order of the inheritances.
 
-Below is an example of a implementation contract:
+Below is an example of a implementation contract(BoxV2) that we are upgrading to:
+Example from `foundry-upgrades-f23/src/BoxV2.sol`:
 ```js
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.18;
+pragma solidity 0.8.19;
 
 import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-contract Implementation is Initializable, OwnableUpgradeable, UUPSUpgradeable {
+// second version of the implementation contract after the upgrade, this is the contract we are upgrading to
+contract BoxV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     // example
     uint256 internal number;
 
-    /// @custom:oz-upgrades-unsafe-allow constructor // this comment turns off the warning/error of using a constructor
-    /// in the proxy.
+    /// @custom:oz-upgrades-unsafe-allow constructor // this comment turns off the warning/error of using a constructor in the implementation.
     constructor() {
         _disableInitializers(); // constructors are not used in upgradeable contracts. this is best practice to prevent initializers from happening in the constructor
     }
 
-    // intialize function is essentially a constuctor for proxies
+    // intialize function is essentially a constuctor for proxies/implementations/upgrades
     // initializer modifier makes it so that this initialize function can only be called once
     function initialize() public initializer {
         // upgradeable intializer functions should start with double underscores `__`
@@ -6551,7 +6553,9 @@ contract Implementation is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         __UUPSUpgradeable_init(); // best practice to have to show this is a UUPS upgradeable contract
     }
 
-    function setNumber(uint256 _number) external { }
+    function setNumber(uint256 _number) external {
+        number = _number;
+    }
 
     function getNumber() external view returns (uint256) {
         return number;
@@ -6566,6 +6570,144 @@ contract Implementation is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 }
 
 ```
+
+below is a deployment script example of deploying our implementation before the upgrade:
+Example from `foundry-upgrades-f23/script/DeployBox.s.sol`:
+```js
+// SPDX-License-Identifier: MIT
+
+pragma solidity 0.8.19;
+
+// Import required contracts
+import { Script } from "forge-std/Script.sol";
+import { BoxV1 } from "src/BoxV1.sol";
+import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+
+contract DeployBox is Script {
+    // Main entry point for the deployment script
+    function run() external returns (address) {
+        // Call the deployment function and return the proxy address
+        address proxy = deployBox();
+        return proxy;
+    }
+
+    function deployBox() public returns (address) {
+        vm.startBroadcast();
+        // Step 1: Deploy the implementation contract (BoxV1)
+        // This contains the actual logic but should never be used directly
+        BoxV1 box = new BoxV1();
+
+        // Step 2: Deploy the ERC1967Proxy contract
+        // - First parameter (address(Box)): Points to the implementation contract
+        // - Second parameter (""): Empty bytes for initialization data
+        //   Note: We could pass initialize() function call here, but in this case we'll call it separately
+        ERC1967Proxy proxy = new ERC1967Proxy(address(box), "");
+        // The ERC1967Proxy is the actual proxy contract that users will interact with, and it delegates calls to your implementation contracts (BoxV1 first, and later can be upgraded to Boxv2).
+
+        vm.stopBroadcast();
+
+        // Return the address of the proxy contract
+        // This is the address users will interact with
+        return address(proxy);
+    }
+}
+
+```
+
+below is a upgrade script example of upgrade our implementation to boxV2:
+Example from `foundry-upgrades-f23/script/UpgradeBox.s.sol`:
+```js
+// SPDX-License-Identifier: MIT
+
+pragma solidity 0.8.19;
+
+// Import required contracts and tools
+import { Script } from "forge-std/Script.sol";
+import { BoxV1 } from "src/BoxV1.sol"; // Original implementation
+import { BoxV2 } from "src/BoxV2.sol"; // New implementation to upgrade to
+import { DevOpsTools } from "foundry-devops/src/DevOpsTools.sol"; // Helper for finding deployed contracts
+
+contract UpgradeBox is Script {
+    function run() external returns (address) {
+        // Get the address of the most recently deployed proxy contract
+        // DevOpsTools searches broadcast logs to find the ERC1967Proxy deployment
+        address mostRecentlyDeployed = DevOpsTools.get_most_recent_deployment("ERC1967Proxy", block.chainid);
+
+        vm.startBroadcast();
+        // Deploy the new implementation contract (BoxV2)
+        BoxV2 newBox = new BoxV2();
+        vm.stopBroadcast();
+
+        // Upgrade the proxy to point to the new implementation
+        // This keeps the same proxy address but changes the logic contract
+        address proxy = upgradeBox(mostRecentlyDeployed, address(newBox));
+        return proxy;
+    }
+
+    function upgradeBox(address proxyAddress, address newBox) public returns (address) {
+        vm.startBroadcast();
+        // Cast the proxy to BoxV1 to access the upgrade function
+        // We use BoxV1 type because it has the UUPS upgrade interface we need
+        BoxV1 proxy = BoxV1(proxyAddress);
+
+        // Call upgradeTo() which is inherited from UUPSUpgradeable
+        // This changes the implementation address in the proxy's storage
+        proxy.upgradeTo(address(newBox)); // proxy contract now points to this new address
+        vm.stopBroadcast();
+
+        // Return the proxy address (which hasn't changed)
+        return address(proxy);
+    }
+}
+```
+
+Below is a test contract, testing the implementation contract, the deployments, and upgrades:
+Example from `foundry-upgrades-f23/test/DeployAndUpgradeTest.t.sol`:
+```js
+// SPDX-License-Identifier: MIT
+
+pragma solidity ^0.8.19;
+
+import { DeployBox } from "../script/DeployBox.s.sol";
+import { UpgradeBox } from "../script/UpgradeBox.s.sol";
+import { Test, console } from "forge-std/Test.sol";
+import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import { BoxV1 } from "../src/BoxV1.sol";
+import { BoxV2 } from "../src/BoxV2.sol";
+
+contract DeployAndUpgradeTest is Test {
+    DeployBox public deployer;
+    UpgradeBox public upgrader;
+    address public OWNER = makeAddr("owner");
+
+    address public proxy;
+
+    function setUp() public {
+        deployer = new DeployBox();
+        upgrader = new UpgradeBox();
+        proxy = deployer.run(); // right now, points to boxV1
+    }
+
+    function testProxyStartsAsBoxV1() public {
+        vm.expectRevert();
+        BoxV2(proxy).setNumber(7);
+    }
+
+    function testUpgrades() public {
+        BoxV2 box2 = new BoxV2();
+
+        upgrader.upgradeBox(proxy, address(box2));
+
+        uint256 expectedValue = 2;
+        assertEq(expectedValue, BoxV2(proxy).version());
+
+        BoxV2(proxy).setNumber(7);
+        assertEq(7, BoxV2(proxy).getNumber());
+    }
+}
+
+```
+
 
 
 #### Diamond Pattern
