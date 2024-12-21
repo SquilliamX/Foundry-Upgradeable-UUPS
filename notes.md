@@ -6441,6 +6441,9 @@ Disadvantages:
 
 All the proxies mentioned below have some type of Ethereum improvemtn proposal (EIP) and most of them are in the draft phase
 
+Note: Upgradeable contracts do not use constructors in the proxy or the implementation. This is because if the implementation has logic that sets variables, the proxy will not set those variables as the constructor for the implementation only sets those variables in the implementation.
+    To get around this, we need to deploy the implementation function, then we need to call a "intializer" function. This is basically our constructor, except it will be called on the proxy.
+
 
 #### Transparent Proxy Pattern
 
@@ -6467,7 +6470,102 @@ This is also advantageous because we have one less read that we have to do, savi
 The issue is that if you deploy an implementation contract without any upgradeable functionality, you're stuck and its back to the social migration method for you.
 
 In UUPS proxies, the upgrade is handles by the implementation and can eventually be removed!
+ 
+To use a UUPS, you can use openzeppelin's package:
+```js
+forge install OpenZeppelin/openzeppelin-contracts-upgradeable --no-commit
+```
 
+and import and inherit the UUPS, and write a `_authorizeUpgrade` override function:
+```js
+// SPDX-License-Identifier: MIT
+
+pragma solidity 0.8.18;
+
+import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
+contract Proxy is Initializable, OwnableUpgradeable, UUPSUpgradeable {
+    uint256 internal number;
+
+    /// @custom:oz-upgrades-unsafe-allow constructor // this comment turns off the warning/error of using a constructor
+    /// in the proxy.
+    constructor() {
+        _disableInitializers(); // constructors are not used in upgradeable contracts. this is best practice to prevent initializers from happening in the constructor
+    }
+
+    // intialize function is essentially a constuctor for proxies
+    // initializer modifier makes it so that this initialize function can only be called once
+    function initialize() public initializer {
+        // upgradeable intializer functions should start with double underscores `__`
+        __Ownable_init(); // sets owner to: owner = msg.sender
+        __UUPSUpgradeable_init(); // best practice to have to show this is a UUPS upgradeable contract
+    }
+
+    // example
+    function getNumber() external view returns (uint256) {
+        return number;
+    }
+
+    // example
+    function version() external pure returns (uint256) {
+        return 1;
+    }
+
+    // we need to override this function a use it
+    function _authorizeUpgrade(address newImplementation) internal override { }
+}
+
+```
+
+at the bottom of the `UUPSUpgradeable` file, there is a `uint256[50] private __gap;` that saves storage spaces for your contract, and you can change this `[50]` number to any number you want, and it is for adding new variables in the future, so that you can dont break your proxy when doing upgrades. This is so that in the future if you need to add storage slots, you don't collide with the existing storage reserves/slots.
+
+Note: If you see an error of `Linearization of inheritance graph impossible`, this means that we are trying to inherit contracts in the wrong order. So change the order of the inheritances.
+
+Below is an example of a implementation contract:
+```js
+// SPDX-License-Identifier: MIT
+
+pragma solidity 0.8.18;
+
+import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
+contract Implementation is Initializable, OwnableUpgradeable, UUPSUpgradeable {
+    // example
+    uint256 internal number;
+
+    /// @custom:oz-upgrades-unsafe-allow constructor // this comment turns off the warning/error of using a constructor
+    /// in the proxy.
+    constructor() {
+        _disableInitializers(); // constructors are not used in upgradeable contracts. this is best practice to prevent initializers from happening in the constructor
+    }
+
+    // intialize function is essentially a constuctor for proxies
+    // initializer modifier makes it so that this initialize function can only be called once
+    function initialize() public initializer {
+        // upgradeable intializer functions should start with double underscores `__`
+        __Ownable_init(); // sets owner to: owner = msg.sender
+        __UUPSUpgradeable_init(); // best practice to have to show this is a UUPS upgradeable contract
+    }
+
+    function setNumber(uint256 _number) external { }
+
+    function getNumber() external view returns (uint256) {
+        return number;
+    }
+
+    function version() external pure returns (uint256) {
+        return 2;
+    }
+
+    // we need to override this function a use it
+    function _authorizeUpgrade(address newImplementation) internal override { }
+}
+
+```
 
 
 #### Diamond Pattern
