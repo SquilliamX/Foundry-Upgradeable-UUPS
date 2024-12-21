@@ -137,6 +137,8 @@ DeFi Notes
     - Why We Care About Stablecoins Notes
     - Different Categories/Properties of StableCoins
 
+Account Abstraction
+
 ## Upgradeable Smart Contracts Notes
     - Not Really Upgrading / Parameterize Upgrade Method
     - Social Migration Method
@@ -6295,6 +6297,60 @@ In a decentralized world, we need a decentralized money. Assets like Ethereum wo
 You can learn more at ` https://updraft.cyfrin.io/courses/advanced-foundry/develop-defi-protocol/defi-stablecoins `
 
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+## Account Abstraction Notes (EIP-4337)
+
+https://updraft.cyfrin.io/courses/advanced-foundry/account-abstraction/introduction
+
+Some people feel overwhelmed when getting into crypto, due to its private key rules, wallet mechanisms, gas costs, etc. The wallet use experience for getting into crypto isn't great.
+
+Account abstraction can be boiled down to one single thing: In a traditional transaction, you need to use your private key to sign the data to send a transaction; with account abstraction, you can sign the data with anything. Imagine being able to sign a transaction with your google account, or github account, or X account, or maybe you want to only be able to sign transactions during the day, or maybe 3 of your friends need to sign off first before you can make a transaction, or  you want a spending limit.
+
+So normally, with a private key(wallet) you can make transactions, but with account abstraction, whatever you want can be a wallet! And with this customization, this means that we can have other people pay for our transactions(gas costs) if we want to!
+
+Even parents can give their kids their first wallet, and code in some parental controls where the kids can create all the transactions and the parents approve them.
+
+
+### How Account Abstraction Works
+
+There are two places where account abstraction exist.
+
+#### Account Abstraction in Ethereum Mainnet
+As of March 1st, 2023, Ethereum Mainnet launched the first official Account Abstraction smart contract called the `entryPoint.sol`, and you have to interact with this smart contract in order to do account abstraction.
+
+In a traditional Ethereum transaction, you sign data with your wallet and spend gas, then send this transaction on-chain and the ethereum nodes will add this transaction to a block in the blockchain.
+
+To use account abstraction in ethereum, you must:
+    
+    1. Deploy a smart contract that defines "what" can sign transactions.
+        (Whereas previously only private keys could sign transactions).
+        For example, you could code that 3 friends have to sign the transaction with their private keys, or you could use something like a google session key to be the one to sign transactions. If you can code it, you can build it. So this new smart contract will be your new smart contract wallet.
+
+    2. To send a transaction, you send a "UserOperation" to an Alt-Mempool.
+        - "UserOperations" have additional transaction information
+        - Alt-Mempools are not the blockchain, Alt-Mempools are off-chain. Alt-Mempools are groups of nodes that are facilatating these "User Operations". Alt-Mempools are going to validate your user-operation, and they are going to pay gas to send your sign transaction on-chain. So it's the Alt-Mempool nodes that send transactions and doing the traditional ethereum transaction. Alt-Mempools nodes will send your smart contract to `EntryPoint.sol`. It's the EntryPoint.sol smart contract that handles every single account abstraction userOperations sent. All these Alt-Mempool nodes call the EntryPoint.sol's `handleOps` function, where they pass all the data associated with a user operation, which includes pointing to your smart contract that you deployed!
+
+        To summarize: You deploy your "UserOperations" smart contract to Alt-Mempool Nodes, Alt-Mempool nodes, validate your transaction, and they route your transaction on-chain to EntryPoint.sol where it points to your smart contract, which is where everything will be directed from. So whenever you interact the blockchain, your smart contract account that you deployed will be the msg.sender/"from" account. And it will go through all the logic in your smart contract, so if you make it so that you use google to sign keys, if googe does not sign your key, the whole transaction reverts.
+
+
+Signature Aggregator: Optional add-on to account abstraction where EntryPoint.sol will let you define a group of signatures that need to be aggregated. For example, this is where you can have your friends be on your multi-sig.
+
+
+PayMaster: This is where you setup your codebase to have somebody else pay for the transactions. You need to have a paymaster, because if you do not, the alt-mempool nodes will pay for your gas in transactions but they will only pay for the transaction if one of the account on chain is going to pay for it. So if you do not have a paymaster setup, it will pull funds out of your account.
+
+
+
+#### Account Abstraction in Zk-Sync
+Other chains like ZkSync have account abstraction natively baked in.
+
+You still have to deploy a smart contract that has all your rules codified, but the main difference is that the alt-mempool nodes are also the ZK-Sync nodes. So we get to skip the step of having to send our transactions to the alt-mempool because the Zk-Sync nodes also work as alt-mempool nodes.
+
+Zk-Sync can do this because they have "DefaultAccount.sol" is which default accounts for every single account. Every single metamask account, every single account in ZK-Sync is technically a smart contract account that has very specific functions and behaviors that can be validated. So anytime you interact with any address, it will always assume it's a smart contract because that's just how Zk-Sync works!
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 
 
 ## Upgradeable Smart Contracts Notes
