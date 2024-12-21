@@ -34,9 +34,10 @@ A professional-grade implementation of upgradeable smart contracts using the UUP
 ## Quick Start
 
 ```bash
-git clone https://github.com/SquilliamX/Foundry-Upgrades.git
-cd foundry-upgrades-f23
+git clone https://github.com/SquilliamX/Foundry-Upgradeable-UUPS.git
+cd Foundry-Upgradeable-UUPS
 forge build
+forge install
 ```
 
 ## 🧪 Testing
@@ -92,8 +93,11 @@ Contributions are welcome! Please check our contributing guidelines and submit P
 
 ## 📄 License
 
-MIT
+This project is licensed under the MIT License
 
 ---
+
+Note: This protocol is a demonstration of advanced Solidity development practices and should not be used in production without thorough auditing. ⚠️
+
 
 *Built with ❤️ by Squilliam*
