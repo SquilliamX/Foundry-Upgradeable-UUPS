@@ -24,14 +24,17 @@ contract BoxV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         __UUPSUpgradeable_init(); // best practice to have to show this is a UUPS upgradeable contract
     }
 
+    // example
     function setNumber(uint256 _number) external {
         number = _number;
     }
 
+    // example
     function getNumber() external view returns (uint256) {
         return number;
     }
 
+    // example
     function version() external pure returns (uint256) {
         return 2;
     }

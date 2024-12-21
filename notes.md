@@ -138,6 +138,12 @@ DeFi Notes
     - Different Categories/Properties of StableCoins
 
 ## Upgradeable Smart Contracts Notes
+    - Not Really Upgrading / Parameterize Upgrade Method
+    - Social Migration Method
+    - Proxies Upgrade Method
+    - Transparent Proxy Pattern
+    - Universal Upgradeable Proxies (UUPS)
+    - Diamond Pattern
 
 
 Keyboard Shortcuts
@@ -6348,7 +6354,7 @@ Disadvantages:
 
 Proxies are the truest programatic form of upgrades since a user can keep interacting with the protocols through these proxies and not even notice that anything changes or even got updated. This is also the upgrade method where the most bugs happen.
 
-Proxies use alot of low level functionality, and the main one being `delegatecall` functionality.
+Proxies use alot of low level functionality, and the main one being `delegatecall` functionality. (see the delegateCall Notes sections)
 
 `Delegatecall`: is a low level function where the code in the target contract is executed in the context of the calling contract and `msg.sender` and `msg.value` do not change their values. This means if i delegatecall a function in contract 'B' from contract 'A', I will do contracts B's logic in contract A. So if contract B has a function that says:
 ```js
@@ -6395,7 +6401,7 @@ Most likely bugs:
     2. Function Selector Clashes
 
 Storage Clashes:
-When we use delegateCall, we do the logic of contract B inside of contract A. So if contract B says we need to set value to 2, it sets the value to 2 in contract A. But this actually sets the value of whatever is in the same storage location on Contract A as contract B.
+When we use `delegateCall`, we do the logic of contract B inside of contract A. So if contract B says we need to set value to 2, it sets the value to 2 in contract A. But this actually sets the value of whatever is in the same storage location on Contract A as contract B.
 For example:
 ```js
 contract B {
